@@ -1,0 +1,11 @@
+[package]
+name = "user_apps"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+user_lib = { path = "../user_lib" }
+riscv.workspace = true
+
+[build-dependencies]
+lazy_static.workspace = true

@@ -1,0 +1,1 @@
+This is a fork of the [rCore-Tutorial-v3](https://github.com/rcore-os/rCore-Tutorial-v3) project. The original project is a tutorial for building an OS from scratch using Rust. This fork is a personal project to learn about OS development and to experiment with the code. The original project is licensed under the GPLv3 license. This fork is also licensed under the GPLv3 license.
