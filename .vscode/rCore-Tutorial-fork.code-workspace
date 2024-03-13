@@ -16,10 +16,9 @@
 				"program": "${workspaceFolder}/target/riscv64gc-unknown-none-elf/debug/kernel",
 				"name": "Debug rCore-Tutorial-fork",
 				"cwd": ".",
-				"targetArchitecture": "riscv64",
 				"miDebuggerPath": "/opt/homebrew/bin/riscv64-elf-gdb",
 				"miDebuggerServerAddress": "localhost:1234",
-				"preLaunchTask": "Build",
+				"preLaunchTask": "Build and Start GDB Server",
 			}
 		]
 	},
@@ -27,16 +26,31 @@
 		"version": "2.0.0",
 		"tasks": [
 			{
-				"label": "Build",
-				"command": "make build",
+				"label": "Build and Start GDB Server",
+				"command": "make gdbserver LOG=TRACE",
 				"type": "shell",
 				"args": [],
-				"problemMatcher": [
-					"$tsc"
-				],
+				"isBackground": true,
 				"presentation": {
-					"reveal": "always"
+					"reveal": "never"
 				},
+				"problemMatcher": [
+					{
+						"pattern": [
+							{
+								"regexp": "^([^\\\\s].*)\\\\((\\\\d+,\\\\d+)\\\\):\\\\s*(.*)$",
+								"file": 1,
+								"location": 2,
+								"message": 3
+							}
+						],
+						"background": {
+							"activeOnStart": true,
+							"beginsPattern": ".",
+							"endsPattern": ".",
+						}
+					}
+				],
 				"group": "build"
 			}
 		]
