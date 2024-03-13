@@ -1,9 +1,8 @@
 #![allow(unused)]
 
 /// use sbi call to putchar in console (qemu uart handler)
-pub fn console_putchar(c: usize) {
-    #[allow(deprecated)]
-    sbi_rt::legacy::console_putchar(c);
+pub fn console_putchar(c: u8) {
+    sbi_rt::console_write_byte(c);
 }
 
 /// use sbi call to getchar from console (qemu uart handler)

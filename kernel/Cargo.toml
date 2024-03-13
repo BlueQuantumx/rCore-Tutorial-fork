@@ -11,7 +11,7 @@ lazy_static.workspace = true
 log.workspace = true
 riscv.workspace = true
 spin.workspace = true
-sbi-rt = { version = "0.0.2", features = ["legacy"] }
+sbi-rt = { version = "0.0.3", features = ["legacy"] }
 
 [build-dependencies]
 lazy_static.workspace = true
