@@ -12,6 +12,7 @@ log.workspace = true
 riscv.workspace = true
 spin.workspace = true
 sbi-rt = { version = "0.0.3", features = ["legacy"] }
+buddy_system_allocator = "0.9.1"
 
 [build-dependencies]
 lazy_static.workspace = true

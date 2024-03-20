@@ -11,14 +11,17 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
 use core::arch::global_asm;
 use log::*;
 
 #[macro_use]
 mod console;
 mod batch;
+mod config;
 mod lang_items;
 mod logging;
+mod memory;
 mod sbi;
 mod syscall;
 mod trap;
@@ -64,6 +67,7 @@ pub fn rust_main() -> ! {
     );
     trace!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
 
+    memory::init();
     trap::init();
     batch::init();
     batch::run_next_app();
