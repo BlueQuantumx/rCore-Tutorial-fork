@@ -46,12 +46,12 @@ impl FrameAllocator for StackFrameAllocator {
     }
 }
 
-struct FrameTracker {
+pub struct FrameTracker {
     pub ppn: PhysPageNum,
 }
 
 impl FrameTracker {
-    fn new(ppn: PhysPageNum) -> Self {
+    pub fn new(ppn: PhysPageNum) -> Self {
         let address: usize = PhysAddr::from(ppn).into();
         for i in address..address + PAGE_SIZE {
             unsafe {
@@ -83,7 +83,7 @@ pub fn init_frame_allocator() {
         ..PhysAddr::from(MEMORY_END).page_number().into();
 }
 
-fn frame_alloc() -> Option<FrameTracker> {
+pub fn frame_alloc() -> Option<FrameTracker> {
     FRAME_ALLOCATOR
         .lock()
         .alloc()
