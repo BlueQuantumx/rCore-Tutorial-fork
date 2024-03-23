@@ -1,5 +1,6 @@
 //! batch subsystem
 
+use crate::config::USER_STACK_SIZE;
 use crate::sbi::shutdown;
 use crate::trap::TrapContext;
 use core::arch::asm;
@@ -7,7 +8,6 @@ use lazy_static::*;
 use log::info;
 use spin::Mutex;
 
-const USER_STACK_SIZE: usize = 4096 * 2;
 const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const MAX_APP_NUM: usize = 16;
 const APP_BASE_ADDRESS: usize = 0x80400000;
