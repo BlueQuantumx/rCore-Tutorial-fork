@@ -11,8 +11,12 @@ const VPN_WIDTH_SV48: usize = VA_WIDTH_SV48 - PAGE_OFFSET_BITS;
 pub struct VirtAddr(usize);
 
 impl VirtAddr {
-    pub fn page_number(&self) -> VirtPageNum {
+    pub fn page_number_floor(&self) -> VirtPageNum {
         VirtPageNum(self.0 >> PAGE_OFFSET_BITS)
+    }
+
+    pub fn page_number_ceil(&self) -> VirtPageNum {
+        VirtPageNum((self.0 + PAGE_SIZE - 1) >> PAGE_OFFSET_BITS)
     }
 
     pub fn page_offset(&self) -> usize {
@@ -71,12 +75,30 @@ impl From<usize> for VirtPageNum {
     }
 }
 
+pub struct VPNRange {
+    pub start: VirtPageNum,
+    pub end: VirtPageNum,
+}
+
+impl VPNRange {
+    pub fn new(start: VirtPageNum, end: VirtPageNum) -> Self {
+        Self { start, end }
+    }
+    pub fn iter(&self) -> impl Iterator<Item = VirtPageNum> {
+        (self.start.0..self.end.0).map(|vpn| VirtPageNum(vpn))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysAddr(usize);
 
 impl PhysAddr {
-    pub fn page_number(&self) -> PhysPageNum {
+    pub fn page_number_floor(&self) -> PhysPageNum {
         PhysPageNum(self.0 >> PAGE_OFFSET_BITS)
+    }
+
+    pub fn page_number_ceil(&self) -> PhysPageNum {
+        PhysPageNum((self.0 + PAGE_SIZE - 1) >> PAGE_OFFSET_BITS)
     }
 
     pub fn page_offset(&self) -> usize {

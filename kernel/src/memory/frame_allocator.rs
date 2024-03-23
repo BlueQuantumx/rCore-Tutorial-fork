@@ -79,8 +79,8 @@ pub fn init_frame_allocator() {
     extern "C" {
         fn ekernel();
     }
-    FRAME_ALLOCATOR.lock().range = PhysAddr::from(ekernel as usize).page_number().into()
-        ..PhysAddr::from(MEMORY_END).page_number().into();
+    FRAME_ALLOCATOR.lock().range = PhysAddr::from(ekernel as usize).page_number_floor().into()
+        ..PhysAddr::from(MEMORY_END).page_number_ceil().into();
 }
 
 pub fn frame_alloc() -> Option<FrameTracker> {
