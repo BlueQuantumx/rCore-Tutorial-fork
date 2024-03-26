@@ -1,30 +1,30 @@
-use alloc::collections::BTreeMap;
+use alloc::vec;
+use alloc::vec::Vec;
 use bitflags::*;
 
 use super::{
-    address::{PhysPageNum, VirtAddr, VirtPageNum},
+    address::{PhysPageNum, VirtPageNum},
     frame_allocator::{frame_alloc, FrameTracker},
 };
 
-struct PageTable {
+pub struct PageTable {
     root_ppn: PhysPageNum,
-    frames: BTreeMap<VirtAddr, FrameTracker>,
+    frames: Vec<FrameTracker>,
 }
 
 impl PageTable {
-    pub fn new(root_ppn: PhysPageNum) -> Self {
+    pub fn new() -> Self {
         let frame = frame_alloc().unwrap();
-        let mut page_table = Self {
-            root_ppn,
-            frames: BTreeMap::new(),
+        let page_table = Self {
+            root_ppn: frame.ppn,
+            frames: vec![frame],
         };
-        page_table.frames.insert(VirtAddr::from(0), frame);
         page_table
     }
     pub fn from_satp_token(satp: usize) -> Self {
         Self {
             root_ppn: PhysPageNum::from(satp),
-            frames: BTreeMap::new(),
+            frames: vec![],
         }
     }
     fn find_pte_create(&mut self, vpn: VirtPageNum) -> Result<&mut PageTableEntry, &'static str> {
@@ -39,7 +39,7 @@ impl PageTable {
             if !pte.is_valid() {
                 let frame = frame_alloc().ok_or("PageTable frame allocation failed")?;
                 *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
-                self.frames.insert(0.into(), frame);
+                self.frames.push(frame);
             }
             ppn = pte.ppn();
         }
@@ -68,7 +68,7 @@ impl PageTable {
         flags: PTEFlags,
     ) -> Result<(), &'static str> {
         let pte = self.find_pte_create(vpn)?;
-        pte.is_valid()
+        (!pte.is_valid())
             .then_some(())
             .ok_or("PageTableEntry already exists")?;
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
@@ -76,7 +76,7 @@ impl PageTable {
     }
     pub fn unmap(&mut self, vpn: VirtPageNum) -> Result<(), &'static str> {
         let pte = self.find_pte(vpn)?;
-        (!pte.is_valid())
+        pte.is_valid()
             .then_some(())
             .ok_or("PageTableEntry not found")?;
         *pte = PageTableEntry::empty();
