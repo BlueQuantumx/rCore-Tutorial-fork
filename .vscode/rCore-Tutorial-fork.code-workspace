@@ -19,6 +19,7 @@
 				"miDebuggerPath": "/opt/homebrew/bin/riscv64-elf-gdb",
 				"miDebuggerServerAddress": "localhost:1234",
 				"preLaunchTask": "Build and Start GDB Server",
+				"stopAtConnect": true,
 			}
 		]
 	},

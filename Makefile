@@ -46,7 +46,7 @@ run: run-inner
 
 QEMU_ARGS := -machine virt \
 			 -nographic \
-			 -kernel $(KERNEL_BIN)
+			 -kernel $(KERNEL_ELF)
 
 run-inner: build
 	@qemu-system-riscv64 $(QEMU_ARGS)
