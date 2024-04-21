@@ -185,10 +185,9 @@ impl MemorySet {
     }
 
     pub fn activate(&self) {
-        let satp = self.page_table.satp_token();
+        let (mode, asid, ppn) = self.page_table.satp_token();
         unsafe {
-            // satp::write(satp);
-            satp::set(satp::Mode::Sv48, 0, satp);
+            satp::set(mode, asid, ppn.into());
             asm!("sfence.vma");
         }
     }

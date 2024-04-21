@@ -1,6 +1,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use riscv::register::satp;
 
 use super::{
     address::{PhysPageNum, VirtPageNum},
@@ -85,8 +86,8 @@ impl PageTable {
     pub fn translate(&self, vpn: VirtPageNum) -> Result<&mut PageTableEntry, &'static str> {
         Ok(self.find_pte(vpn)?)
     }
-    pub fn satp_token(&self) -> usize {
-        8usize << 60 | self.root_ppn.0
+    pub fn satp_token(&self) -> (satp::Mode, usize, PhysPageNum) {
+        (satp::Mode::Sv48, 0, self.root_ppn)
     }
 }
 

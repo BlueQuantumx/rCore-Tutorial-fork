@@ -1,3 +1,5 @@
+use log::info;
+
 use self::memory_set::KERNEL_SPACE;
 
 pub mod address;
@@ -9,5 +11,6 @@ mod page_table;
 pub fn init() {
     heap_allocator::init_heap();
     frame_allocator::init_frame_allocator();
-    KERNEL_SPACE.lock();
+    KERNEL_SPACE.lock().activate();
+    info!("kernel address space set up");
 }
