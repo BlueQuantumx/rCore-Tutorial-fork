@@ -86,7 +86,7 @@ impl PageTable {
     pub fn translate(&self, vpn: VirtPageNum) -> Result<&mut PageTableEntry, &'static str> {
         Ok(self.find_pte(vpn)?)
     }
-    pub fn satp_token(&self) -> (satp::Mode, usize, PhysPageNum) {
+    pub fn satp_token(&self) -> (satp::Mode, u8, PhysPageNum) {
         (satp::Mode::Sv48, 0, self.root_ppn)
     }
 }

@@ -17,13 +17,15 @@ use log::*;
 
 #[macro_use]
 mod console;
-mod batch;
 mod config;
 mod lang_items;
 mod logging;
 mod memory;
 mod sbi;
+mod symbol;
 mod syscall;
+mod task;
+mod timer;
 mod trap;
 
 global_asm!(include_str!("entry.asm"));
@@ -69,6 +71,8 @@ pub fn rust_main() -> ! {
 
     memory::init();
     trap::init();
-    batch::init();
-    batch::run_next_app();
+    trap::enable_timer_interrupt();
+    timer::set_next_trigger();
+    task::print_app_info();
+    task::run_first_app();
 }

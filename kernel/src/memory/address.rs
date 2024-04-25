@@ -16,7 +16,7 @@ impl VirtAddr {
     }
 
     pub fn page_number_ceil(&self) -> VirtPageNum {
-        VirtPageNum((self.0 + PAGE_SIZE - 1) >> PAGE_OFFSET_BITS)
+        VirtPageNum((self.0 - 1 + PAGE_SIZE) >> PAGE_OFFSET_BITS) // -1 first to avoid overflow
     }
 
     pub fn page_offset(&self) -> usize {

@@ -1,5 +1,6 @@
 [workspace]
 members = ["kernel", "user_lib", "user_apps"]
+default-members = ["kernel"]
 resolver = "2"
 
 [workspace.dependencies]

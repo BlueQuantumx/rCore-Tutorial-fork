@@ -13,6 +13,9 @@ pub fn console_getchar() -> usize {
     sbi_rt::legacy::console_getchar()
 }
 
+pub fn set_timer(duration: u64) {
+    sbi_rt::set_timer(duration);
+}
 /// use sbi call to shutdown the kernel
 pub fn shutdown(failure: bool) -> ! {
     use sbi_rt::{system_reset, NoReason, Shutdown, SystemFailure};

@@ -7,5 +7,5 @@ extern crate user_lib;
 #[no_mangle]
 fn main(_argc: usize, _argv: &[&str]) -> i32 {
     println!("Hello, world!");
-    1
+    0
 }
