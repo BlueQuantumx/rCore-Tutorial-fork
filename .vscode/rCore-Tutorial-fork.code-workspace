@@ -11,6 +11,24 @@
 	"launch": {
 		"configurations": [
 			{
+				"type": "lldb",
+				"request": "launch",
+				"name": "Debug Kernel (LLDB)",
+				"program": "${workspaceFolder}/target/riscv64gc-unknown-none-elf/debug/kernel",
+				"args": [],
+				"cwd": "${workspaceFolder}",
+				"preLaunchTask": "Build and Start GDB Server",
+				// "targetCreateCommands": [
+				// 	"target create kernel.sym"
+				// ],
+				"processCreateCommands": [
+					"gdb-remote 1234"
+				],
+				"sourceLanguages": [
+					"rust"
+				]
+			},
+			{
 				"type": "cppdbg",
 				"request": "launch",
 				"program": "${workspaceFolder}/target/riscv64gc-unknown-none-elf/debug/kernel",

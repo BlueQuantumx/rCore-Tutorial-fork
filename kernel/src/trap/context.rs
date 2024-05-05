@@ -9,7 +9,7 @@ use super::trap_handler;
 pub struct TrapContext {
     /// general regs[0..31]
     pub x: [usize; 32],
-    /// CSR sstatus      
+    /// CSR sstatus
     pub sstatus: Sstatus,
     /// CSR sepc
     pub sepc: usize,
