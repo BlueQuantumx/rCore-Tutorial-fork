@@ -8,13 +8,14 @@ use crate::memory::{
     address::{PhysPageNum, VirtAddr, PAGE_SIZE},
     MapPermission, MemorySet, KERNEL_SPACE,
 };
+use crate::sbi::shutdown;
 use crate::symbol::__switch;
 use crate::trap::{trap_handler, TrapContext};
 pub use context::TaskContext;
 
 use alloc::vec::Vec;
 use lazy_static::*;
-use log::info;
+use log::{info, trace};
 use riscv::register::satp;
 use spin::Mutex;
 
@@ -76,7 +77,7 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
     task_manager.current_task().get_trap_cx()
 }
 
-pub fn current_user_token() -> (satp::Mode, u8, PhysPageNum) {
+pub fn current_user_token() -> usize {
     TASK_MANAGER.lock().current_task().memory_set.satp_token()
 }
 
@@ -92,31 +93,50 @@ pub fn run_first_app() -> ! {
     };
     let next_task_cx_ptr = &tasks[0].task_cx as *const TaskContext;
     drop(task_manager);
+    info!("running app 0");
     unsafe {
         __switch(&mut _unused_cx, next_task_cx_ptr);
     }
+    panic!("unreachable in run_first_task!");
+}
+
+pub fn suspend_current_and_run_next_task() {
+    let mut task_manager = TASK_MANAGER.lock();
+    task_manager.suspend_current_task();
+    drop(task_manager);
+    run_next_ready_app();
+}
+
+pub fn exit_current_and_run_next_task() {
+    let mut task_manager = TASK_MANAGER.lock();
+    task_manager.exit_current_task();
+    drop(task_manager);
+    run_next_ready_app();
 }
 
 /// run next app
-pub fn run_next_ready_app() -> ! {
+fn run_next_ready_app() {
     let mut task_manager = TASK_MANAGER.lock();
-    task_manager.suspend_current_task();
     if let Some(next) = task_manager.next_ready_task() {
-        let current_task_id = task_manager.current_task_id;
-        let tasks = &mut task_manager.tasks;
-        tasks[next].task_status = TaskStatus::Running;
-        let current_task_cx_ptr = &mut tasks[current_task_id].task_cx as *mut TaskContext;
-        let next_task_cx_ptr = &task_manager.tasks[next].task_cx as *const TaskContext;
+        let current_task_cx_ptr = &mut task_manager.current_task_mut().task_cx as *mut TaskContext;
+        task_manager.current_task_id = next;
+        task_manager.current_task_mut().task_status = TaskStatus::Running;
+        let next_task_cx_ptr = &task_manager.current_task().task_cx as *const TaskContext;
+        // for task in task_manager.tasks.iter() {
+        //     info!("{:?}", task.task_status);
+        // }
+        // info!("running app {}", next);
+        drop(task_manager);
+        // info!("running app {}", next);
         unsafe {
             __switch(current_task_cx_ptr, next_task_cx_ptr);
         }
     } else {
-        panic!("No ready task to run!");
+        for task in task_manager.tasks.iter() {
+            info!("{:?}", task.task_status);
+        }
+        shutdown(false);
     }
-}
-
-pub fn kill_current_app() {
-    TASK_MANAGER.lock().current_task_mut().task_status = TaskStatus::Exited;
 }
 
 lazy_static! {
@@ -157,11 +177,18 @@ impl TaskManager {
 impl TaskManager {
     fn suspend_current_task(&mut self) {
         let current_task = &mut self.tasks[self.current_task_id];
-        current_task.task_status = TaskStatus::Ready;
+        if current_task.task_status == TaskStatus::Running {
+            current_task.task_status = TaskStatus::Ready;
+        }
     }
 
-    pub fn next_ready_task(&mut self) -> Option<usize> {
-        (self.current_task_id..self.current_task_id + self.tasks.len())
+    fn exit_current_task(&mut self) {
+        let current_task = &mut self.tasks[self.current_task_id];
+        current_task.task_status = TaskStatus::Exited;
+    }
+
+    fn next_ready_task(&mut self) -> Option<usize> {
+        (self.current_task_id + 1..self.current_task_id + self.tasks.len() + 1)
             .map(|i| i % self.tasks.len())
             .find(|i| self.tasks[*i].task_status == TaskStatus::Ready)
     }
@@ -194,16 +221,22 @@ impl TaskControlBlock {
         let task_status = TaskStatus::Ready;
 
         // map a kernel-stack in kernel space
-        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(app_id);
+        let (kernel_stack_left, kernel_stack_right) = kernel_stack_position(app_id);
+        trace!(
+            "mapping kernel stack for app_{} [{:x}, {:x})",
+            app_id,
+            kernel_stack_left,
+            kernel_stack_right
+        );
         KERNEL_SPACE.lock().insert_framed_area(
-            kernel_stack_bottom.into(),
-            kernel_stack_top.into(),
+            kernel_stack_left.into(),
+            kernel_stack_right.into(),
             MapPermission::R | MapPermission::W,
         );
 
         let task_control_block = Self {
             task_status,
-            task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+            task_cx: TaskContext::goto_trap_return(kernel_stack_right),
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
@@ -214,7 +247,7 @@ impl TaskControlBlock {
             entry_point,
             user_sp,
             satp::read().bits(),
-            kernel_stack_top,
+            kernel_stack_right - 8,
             trap_handler as usize,
         );
         task_control_block

@@ -165,6 +165,11 @@ impl MemorySet {
         // guard page
         user_stack_bottom += PAGE_SIZE;
         let user_stack_top = user_stack_bottom + USER_STACK_SIZE;
+        trace!(
+            "mapping user stack [{:#x}, {:#x})",
+            user_stack_bottom,
+            user_stack_top
+        );
         memory_set.push(
             MapArea::new(
                 user_stack_bottom.into(),
@@ -175,6 +180,7 @@ impl MemorySet {
             None,
         );
         // map TrapContext
+        trace!("mapping TrapContext");
         memory_set.push(
             MapArea::new(
                 TRAP_CONTEXT.into(),
@@ -201,8 +207,9 @@ impl MemorySet {
         }
     }
 
-    pub fn satp_token(&self) -> (satp::Mode, u8, PhysPageNum) {
-        self.page_table.satp_token()
+    pub fn satp_token(&self) -> usize {
+        let (mode, asid, ppn) = self.page_table.satp_token();
+        ((((mode as usize) << 16) | asid) << 44) | ppn.0
     }
 
     fn map_trampoline(&mut self) {
@@ -282,6 +289,7 @@ impl MapArea {
         }
         Ok(())
     }
+    #[allow(dead_code)]
     pub fn unmap(&mut self, page_table: &mut PageTable) -> Result<(), &'static str> {
         for vpn in self.range.iter() {
             match self.map_type {

@@ -15,14 +15,17 @@
 mod context;
 
 use crate::{
-    config::{TASK_SWITCH_TICK, TRAMPOLINE, TRAP_CONTEXT},
-    sbi::set_timer,
+    config::{TRAMPOLINE, TRAP_CONTEXT},
     syscall::syscall,
-    task::{current_trap_cx, current_user_token, kill_current_app, run_next_ready_app},
+    task::{
+        current_trap_cx, current_user_token, exit_current_and_run_next_task,
+        suspend_current_and_run_next_task,
+    },
+    timer::set_next_trigger,
 };
 pub use context::TrapContext;
 use core::arch::{asm, global_asm};
-use log::warn;
+use log::{trace, warn};
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
@@ -75,17 +78,16 @@ pub fn trap_handler() -> ! {
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => {
             warn!("PageFault in application, kernel killed it.");
-            kill_current_app();
-            run_next_ready_app();
+            exit_current_and_run_next_task();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             warn!("IllegalInstruction in application, kernel killed it.");
-            kill_current_app();
-            run_next_ready_app();
+            exit_current_and_run_next_task();
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
-            set_timer(TASK_SWITCH_TICK);
-            run_next_ready_app(); //TODO: preemptive scheduling
+            trace!("Supervisor timer triggered");
+            set_next_trigger();
+            suspend_current_and_run_next_task();
         }
         _ => {
             panic!(
@@ -98,12 +100,11 @@ pub fn trap_handler() -> ! {
     trap_return();
 }
 
+#[no_mangle]
 pub fn trap_return() -> ! {
     set_user_trap_entry();
     let trap_cx_ptr = TRAP_CONTEXT;
     let user_satp = current_user_token();
-    let user_satp =
-        ((((user_satp.0 as usize) << 16) | user_satp.1 as usize) << 44) | user_satp.2 .0;
     use crate::symbol::{__alltraps, __restore};
     let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
     unsafe {

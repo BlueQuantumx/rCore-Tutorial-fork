@@ -7,8 +7,8 @@ pub mod console;
 pub mod syscall;
 
 #[panic_handler]
-fn panic_handler(_panic_info: &core::panic::PanicInfo) -> ! {
-    println!("[user_lib] PANIC!");
+fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
+    println!("[user_lib] {}", panic_info);
     loop {}
 }
 
