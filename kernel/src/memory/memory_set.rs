@@ -341,7 +341,8 @@ bitflags! {
     }
 }
 
-pub fn remap_test() {
+#[test_case]
+fn remap_test() {
     let kernel_space = KERNEL_SPACE.lock();
     let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();
     let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();

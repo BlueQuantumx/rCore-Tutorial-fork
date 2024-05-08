@@ -14,5 +14,4 @@ pub fn init() {
     frame_allocator::init_frame_allocator();
     KERNEL_SPACE.lock().activate();
     info!("kernel address space set up");
-    memory_set::remap_test();
 }

@@ -1,7 +1,11 @@
 mod context;
 mod switch;
 
-use core::arch::global_asm;
+use alloc::vec::Vec;
+use lazy_static::*;
+use log::{info, trace};
+use riscv::register::satp;
+use spin::Mutex;
 
 use crate::config::{KERNEL_STACK_SIZE, MAX_APP_NUM, TRAMPOLINE, TRAP_CONTEXT};
 use crate::memory::{
@@ -9,17 +13,9 @@ use crate::memory::{
     MapPermission, MemorySet, KERNEL_SPACE,
 };
 use crate::sbi::shutdown;
-use crate::symbol::__switch;
 use crate::trap::{trap_handler, TrapContext};
 pub use context::TaskContext;
-
-use alloc::vec::Vec;
-use lazy_static::*;
-use log::{info, trace};
-use riscv::register::satp;
-use spin::Mutex;
-
-global_asm!(include_str!("switch.s"));
+use switch::__switch;
 
 struct AppManager {
     num_app: usize,
@@ -122,12 +118,8 @@ fn run_next_ready_app() {
         task_manager.current_task_id = next;
         task_manager.current_task_mut().task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task_manager.current_task().task_cx as *const TaskContext;
-        // for task in task_manager.tasks.iter() {
-        //     info!("{:?}", task.task_status);
-        // }
-        // info!("running app {}", next);
+        trace!("running app {}", next);
         drop(task_manager);
-        // info!("running app {}", next);
         unsafe {
             __switch(current_task_cx_ptr, next_task_cx_ptr);
         }

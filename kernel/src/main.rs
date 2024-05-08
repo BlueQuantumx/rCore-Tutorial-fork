@@ -2,14 +2,13 @@
 //!
 //! The operating system and app also starts in this module. Kernel code starts
 //! executing from `entry.asm`, after which [`rust_main()`] is called to
-//! initialize various pieces of functionality [`clear_bss()`]. (See its source code for
-//! details.)
-//!
-//! We then call [`println!`] to display `Hello, world!`.
+//! initialize various pieces of functionality.
 
-#![deny(missing_docs)]
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 extern crate alloc;
 use core::arch::global_asm;
@@ -22,7 +21,6 @@ mod lang_items;
 mod logging;
 mod memory;
 mod sbi;
-mod symbol;
 mod syscall;
 mod task;
 mod timer;
@@ -30,6 +28,17 @@ mod trap;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!(concat!(env!("OUT_DIR"), "/link_apps.S")));
+
+#[cfg(test)]
+pub fn test_runner(tests: &[&dyn Fn()]) {
+    use crate::sbi::shutdown;
+
+    println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
+    shutdown(false);
+}
 
 /// clear BSS segment
 pub fn clear_bss() {
@@ -62,17 +71,19 @@ pub fn rust_main() -> ! {
     trace!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
     trace!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
     trace!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
+    trace!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
     trace!(
         "boot_stack top=bottom={:#x}, lower_bound={:#x}",
         boot_stack_top as usize,
         boot_stack_lower_bound as usize
     );
-    trace!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
 
     memory::init();
     trap::init();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
+
+    #[cfg(test)]
+    test_main();
+
     task::print_app_info();
     task::run_first_app();
 }

@@ -21,22 +21,29 @@ use crate::{
         current_trap_cx, current_user_token, exit_current_and_run_next_task,
         suspend_current_and_run_next_task,
     },
-    timer::set_next_trigger,
+    timer::{self, set_next_trigger},
 };
 pub use context::TrapContext;
 use core::arch::{asm, global_asm};
 use log::{trace, warn};
 use riscv::register::{
-    mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
     sie, stval, stvec,
+    stvec::TrapMode,
 };
 
 global_asm!(include_str!("trap.S"));
 
+extern "C" {
+    pub fn __alltraps() -> !;
+    pub fn __restore(trap_cx_addr: usize) -> !;
+}
+
 /// initialize CSR `stvec` as the entry of `__alltraps`
 pub fn init() {
     set_kernel_trap_entry();
+    enable_timer_interrupt();
+    timer::set_next_trigger();
 }
 
 pub fn enable_timer_interrupt() {
@@ -100,12 +107,10 @@ pub fn trap_handler() -> ! {
     trap_return();
 }
 
-#[no_mangle]
 pub fn trap_return() -> ! {
     set_user_trap_entry();
     let trap_cx_ptr = TRAP_CONTEXT;
     let user_satp = current_user_token();
-    use crate::symbol::{__alltraps, __restore};
     let restore_va = __restore as usize - __alltraps as usize + TRAMPOLINE;
     unsafe {
         asm!(
