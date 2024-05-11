@@ -1,3 +1,5 @@
+use crate::trap::trap_return;
+
 #[repr(C)]
 pub struct TaskContext {
     /// return address ( e.g. __restore ) of __switch ASM function
@@ -8,9 +10,15 @@ pub struct TaskContext {
     pub s: [usize; 12],
 }
 
-use crate::trap::trap_return;
-
 impl TaskContext {
+    pub fn zero() -> Self {
+        Self {
+            ra: 0,
+            sp: 0,
+            s: [0; 12],
+        }
+    }
+
     pub fn goto_trap_return(kernel_stack_top: usize) -> Self {
         Self {
             ra: trap_return as usize,

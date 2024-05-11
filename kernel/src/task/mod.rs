@@ -1,21 +1,21 @@
 mod context;
+mod process;
+mod processor;
 mod switch;
 
-use alloc::vec::Vec;
+use alloc::collections::VecDeque;
+use alloc::sync::Arc;
 use lazy_static::*;
-use log::{info, trace};
-use riscv::register::satp;
+use log::info;
 use spin::Mutex;
 
-use crate::config::{KERNEL_STACK_SIZE, MAX_APP_NUM, TRAMPOLINE, TRAP_CONTEXT};
-use crate::memory::{
-    address::{PhysPageNum, VirtAddr, PAGE_SIZE},
-    MapPermission, MemorySet, KERNEL_SPACE,
-};
-use crate::sbi::shutdown;
-use crate::trap::{trap_handler, TrapContext};
+use crate::config::MAX_APP_NUM;
+use crate::trap::TrapContext;
 pub use context::TaskContext;
-use switch::__switch;
+pub use processor::run_processes;
+
+use self::process::Process;
+use self::processor::{schedule, PROCESSOR};
 
 struct AppManager {
     num_app: usize,
@@ -63,198 +63,78 @@ lazy_static! {
     };
 }
 
-/// print apps info
-pub fn print_app_info() {
-    APP_MANAGER.lock().print_app_info();
-}
-
-pub fn current_trap_cx() -> &'static mut TrapContext {
-    let task_manager = TASK_MANAGER.lock();
-    task_manager.current_task().get_trap_cx()
-}
-
-pub fn current_user_token() -> usize {
-    TASK_MANAGER.lock().current_task().memory_set.satp_token()
-}
-
-pub fn run_first_app() -> ! {
-    let mut task_manager = TASK_MANAGER.lock();
-    let current_task_id = task_manager.current_task_id;
-    let tasks = &mut task_manager.tasks;
-    tasks[current_task_id].task_status = TaskStatus::Running;
-    let mut _unused_cx = TaskContext {
-        ra: 0,
-        sp: 0,
-        s: [0; 12],
-    };
-    let next_task_cx_ptr = &tasks[0].task_cx as *const TaskContext;
-    drop(task_manager);
-    info!("running app 0");
-    unsafe {
-        __switch(&mut _unused_cx, next_task_cx_ptr);
-    }
-    panic!("unreachable in run_first_task!");
-}
-
-pub fn suspend_current_and_run_next_task() {
-    let mut task_manager = TASK_MANAGER.lock();
-    task_manager.suspend_current_task();
-    drop(task_manager);
-    run_next_ready_app();
-}
-
-pub fn exit_current_and_run_next_task() {
-    let mut task_manager = TASK_MANAGER.lock();
-    task_manager.exit_current_task();
-    drop(task_manager);
-    run_next_ready_app();
-}
-
-/// run next app
-fn run_next_ready_app() {
-    let mut task_manager = TASK_MANAGER.lock();
-    if let Some(next) = task_manager.next_ready_task() {
-        let current_task_cx_ptr = &mut task_manager.current_task_mut().task_cx as *mut TaskContext;
-        task_manager.current_task_id = next;
-        task_manager.current_task_mut().task_status = TaskStatus::Running;
-        let next_task_cx_ptr = &task_manager.current_task().task_cx as *const TaskContext;
-        trace!("running app {}", next);
-        drop(task_manager);
-        unsafe {
-            __switch(current_task_cx_ptr, next_task_cx_ptr);
-        }
-    } else {
-        for task in task_manager.tasks.iter() {
-            info!("{:?}", task.task_status);
-        }
-        shutdown(false);
-    }
-}
-
 lazy_static! {
-    pub static ref TASK_MANAGER: Mutex<TaskManager> = {
-        let mut task_manager = TaskManager::new();
+    pub static ref PROCESS_MANAGER: Mutex<ProcessManager> = {
+        let mut task_manager = ProcessManager::new();
         let app_manager = APP_MANAGER.lock();
         for id in 0..app_manager.num_app {
             let elf_data = unsafe { app_manager.load_app(id) };
-            task_manager.add_task(id, elf_data);
+            task_manager.add(Arc::new(Process::new(elf_data)));
         }
         Mutex::new(task_manager)
     };
 }
 
-pub struct TaskManager {
-    current_task_id: usize,
-    pub tasks: Vec<TaskControlBlock>,
+pub struct ProcessManager {
+    tasks: VecDeque<Arc<Process>>,
 }
 
-impl TaskManager {
+impl ProcessManager {
     pub fn new() -> Self {
         Self {
-            current_task_id: 0,
-            tasks: Vec::new(),
+            tasks: VecDeque::new(),
         }
     }
-    pub fn add_task(&mut self, app_id: usize, elf_data: &[u8]) {
-        self.tasks.push(TaskControlBlock::new(elf_data, app_id));
+    pub fn num(&self) -> usize {
+        self.tasks.len()
     }
-    pub fn current_task(&self) -> &TaskControlBlock {
-        &self.tasks[self.current_task_id]
+    pub fn add(&mut self, task: Arc<Process>) {
+        self.tasks.push_back(task);
     }
-    pub fn current_task_mut(&mut self) -> &mut TaskControlBlock {
-        &mut self.tasks[self.current_task_id]
-    }
-}
-
-impl TaskManager {
-    fn suspend_current_task(&mut self) {
-        let current_task = &mut self.tasks[self.current_task_id];
-        if current_task.task_status == TaskStatus::Running {
-            current_task.task_status = TaskStatus::Ready;
-        }
-    }
-
-    fn exit_current_task(&mut self) {
-        let current_task = &mut self.tasks[self.current_task_id];
-        current_task.task_status = TaskStatus::Exited;
-    }
-
-    fn next_ready_task(&mut self) -> Option<usize> {
-        (self.current_task_id + 1..self.current_task_id + self.tasks.len() + 1)
-            .map(|i| i % self.tasks.len())
-            .find(|i| self.tasks[*i].task_status == TaskStatus::Ready)
+    pub fn fetch(&mut self) -> Option<Arc<Process>> {
+        self.tasks.pop_front()
     }
 }
 
-pub struct TaskControlBlock {
-    pub task_status: TaskStatus,
-    pub task_cx: TaskContext,
-    pub memory_set: MemorySet,
-    pub trap_cx_ppn: PhysPageNum,
-    pub base_size: usize,
-    // pub heap_bottom: usize,
-    // pub program_brk: usize,
+pub fn current_user_token() -> usize {
+    PROCESSOR
+        .lock()
+        .current()
+        .as_ref()
+        .unwrap()
+        .lock_inner()
+        .memory_set
+        .satp_token()
 }
 
-impl TaskControlBlock {
-    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
-        unsafe { self.trap_cx_ppn.get_mut() }
-    }
+pub fn current_trap_cx() -> &'static mut TrapContext {
+    PROCESSOR.lock().current().as_ref().unwrap().trap_cx()
 }
 
-impl TaskControlBlock {
-    pub fn new(elf_data: &[u8], app_id: usize) -> Self {
-        // memory_set with elf program headers/trampoline/trap context/user stack
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
-        let trap_cx_ppn = memory_set
-            .translate(VirtAddr::from(TRAP_CONTEXT).page_number_floor())
-            .unwrap()
-            .ppn();
-        let task_status = TaskStatus::Ready;
-
-        // map a kernel-stack in kernel space
-        let (kernel_stack_left, kernel_stack_right) = kernel_stack_position(app_id);
-        trace!(
-            "mapping kernel stack for app_{} [{:x}, {:x})",
-            app_id,
-            kernel_stack_left,
-            kernel_stack_right
-        );
-        KERNEL_SPACE.lock().insert_framed_area(
-            kernel_stack_left.into(),
-            kernel_stack_right.into(),
-            MapPermission::R | MapPermission::W,
-        );
-
-        let task_control_block = Self {
-            task_status,
-            task_cx: TaskContext::goto_trap_return(kernel_stack_right),
-            memory_set,
-            trap_cx_ppn,
-            base_size: user_sp,
-        };
-        // prepare TrapContext in user space
-        let trap_cx = task_control_block.get_trap_cx();
-        *trap_cx = TrapContext::app_init_context(
-            entry_point,
-            user_sp,
-            satp::read().bits(),
-            kernel_stack_right - 8,
-            trap_handler as usize,
-        );
-        task_control_block
-    }
+pub fn suspend_current_and_run_next_task() {
+    let current = PROCESSOR
+        .lock()
+        .current()
+        .take()
+        .expect("no current process");
+    let mut current_inner = current.lock_inner();
+    let current_cx_ptr = &mut current_inner.task_cx as *mut TaskContext;
+    current_inner.status = process::ProcessStatus::Ready;
+    drop(current_inner);
+    PROCESS_MANAGER.lock().add(current);
+    schedule(current_cx_ptr);
 }
 
-#[derive(Debug, PartialEq)]
-pub enum TaskStatus {
-    Ready,
-    Running,
-    Exited,
-}
-
-/// return app's kernel stack with [{0}, {1})
-fn kernel_stack_position(app_id: usize) -> (usize, usize) {
-    let stack_bottom = TRAMPOLINE - app_id * (KERNEL_STACK_SIZE + PAGE_SIZE); // stack bottom
-    (stack_bottom - KERNEL_STACK_SIZE, stack_bottom)
+pub fn exit_current_and_run_next_task() {
+    let current = PROCESSOR
+        .lock()
+        .current()
+        .take()
+        .expect("no current process");
+    let mut current_inner = current.lock_inner();
+    let current_cx_ptr = &mut current_inner.task_cx as *mut TaskContext;
+    current_inner.status = process::ProcessStatus::Exited;
+    drop(current_inner);
+    drop(current);
+    schedule(current_cx_ptr);
 }

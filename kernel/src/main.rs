@@ -10,10 +10,6 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-extern crate alloc;
-use core::arch::global_asm;
-use log::*;
-
 #[macro_use]
 mod console;
 mod config;
@@ -25,6 +21,10 @@ mod syscall;
 mod task;
 mod timer;
 mod trap;
+
+extern crate alloc;
+use core::arch::global_asm;
+use log::*;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!(concat!(env!("OUT_DIR"), "/link_apps.S")));
@@ -84,6 +84,5 @@ pub fn rust_main() -> ! {
     #[cfg(test)]
     test_main();
 
-    task::print_app_info();
-    task::run_first_app();
+    task::run_processes();
 }
