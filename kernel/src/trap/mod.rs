@@ -21,7 +21,7 @@ use crate::{
         current_trap_cx, current_user_token, exit_current_and_run_next_task,
         suspend_current_and_run_next_task,
     },
-    timer::{self, set_next_trigger},
+    timer::set_next_trigger,
 };
 pub use context::TrapContext;
 use core::arch::{asm, global_asm};
@@ -42,8 +42,11 @@ extern "C" {
 /// initialize CSR `stvec` as the entry of `__alltraps`
 pub fn init() {
     set_kernel_trap_entry();
-    enable_timer_interrupt();
-    timer::set_next_trigger();
+    #[cfg(feature = "time-sharing")]
+    {
+        enable_timer_interrupt();
+        set_next_trigger();
+    }
 }
 
 pub fn enable_timer_interrupt() {

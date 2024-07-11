@@ -18,3 +18,7 @@ xmas-elf = "0.9.1"
 
 [build-dependencies]
 lazy_static.workspace = true
+
+[features]
+default = ["time-sharing"]
+time-sharing = []
