@@ -1,9 +1,11 @@
 use core::fmt::{self, Write};
 
+use crate::syscall::sys_read;
 use crate::syscall::sys_write;
 
 struct Stdout;
 
+const STDIN: usize = 0;
 const STDOUT: usize = 1;
 
 impl Write for Stdout {
@@ -11,6 +13,12 @@ impl Write for Stdout {
         sys_write(STDOUT, s.as_bytes());
         Ok(())
     }
+}
+
+pub fn getchar() -> u8 {
+    let mut buf = [0u8; 1];
+    sys_read(STDIN, &mut buf);
+    buf[0]
 }
 
 pub fn print(args: fmt::Arguments) {
