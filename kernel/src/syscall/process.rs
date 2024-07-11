@@ -13,7 +13,6 @@ pub fn sys_exit(exit_code: i32) -> ! {
 }
 
 pub fn sys_yield() -> isize {
-    info!("Yield current task");
     suspend_current_and_run_next_task();
     0
 }

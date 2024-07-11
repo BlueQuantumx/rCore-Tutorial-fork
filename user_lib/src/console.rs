@@ -2,6 +2,7 @@ use core::fmt::{self, Write};
 
 use crate::syscall::sys_read;
 use crate::syscall::sys_write;
+use crate::syscall::sys_yield;
 
 struct Stdout;
 
@@ -17,7 +18,14 @@ impl Write for Stdout {
 
 pub fn getchar() -> u8 {
     let mut buf = [0u8; 1];
-    sys_read(STDIN, &mut buf);
+    loop {
+        let ret = sys_read(STDIN, &mut buf);
+        if ret == 1 {
+            break;
+        } else {
+            sys_yield();
+        }
+    }
     buf[0]
 }
 
