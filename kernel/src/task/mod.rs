@@ -71,6 +71,7 @@ lazy_static! {
             let elf_data = unsafe { app_manager.load_app(id) };
             task_manager.add(Arc::new(Process::new(elf_data)));
         }
+
         Mutex::new(task_manager)
     };
 }
