@@ -196,6 +196,27 @@ impl MemorySet {
             elf.header.pt2.entry_point() as usize,
         )
     }
+
+    pub fn from_existed(user_space: &MemorySet) -> Self {
+        let mut memory_set = Self::new_bare();
+        // map trampoline
+        memory_set.map_trampoline();
+        for area in &user_space.areas {
+            let new_area = MapArea::new(
+                area.range.start.into(),
+                area.range.end.into(),
+                area.map_type,
+                area.map_perm,
+            );
+            memory_set.push(new_area, None);
+            for vpn in area.range.iter() {
+                let src = user_space.translate(vpn).unwrap().ppn().get_bytes_array();
+                let dst = memory_set.translate(vpn).unwrap().ppn().get_bytes_array();
+                dst.copy_from_slice(src);
+            }
+        }
+        memory_set
+    }
 }
 
 impl MemorySet {
@@ -235,7 +256,7 @@ impl MemorySet {
         );
     }
     fn push(&mut self, mut area: MapArea, data: Option<&[u8]>) {
-        area.map(&mut self.page_table).unwrap();
+        area.apply_mapping(&mut self.page_table).unwrap();
         if let Some(data) = data {
             area.copy_data(&mut self.page_table, data);
         }
@@ -248,8 +269,9 @@ impl MemorySet {
         self.page_table.translate(vpn)
     }
 }
+
 struct MapArea {
-    range: VPNRange,
+    range: VPNRange, // [start_vpn, end_vpn)
     data_frames: BTreeMap<VirtPageNum, FrameTracker>,
     map_type: MapType,
     map_perm: MapPermission,
@@ -271,7 +293,7 @@ impl MapArea {
             map_perm,
         }
     }
-    pub fn map(&mut self, page_table: &mut PageTable) -> Result<(), &'static str> {
+    pub fn apply_mapping(&mut self, page_table: &mut PageTable) -> Result<(), &'static str> {
         for vpn in self.range.iter() {
             let ppn: PhysPageNum;
             let pte_flags = PTEFlags::from_bits_retain(self.map_perm.bits());
@@ -290,7 +312,7 @@ impl MapArea {
         Ok(())
     }
     #[allow(dead_code)]
-    pub fn unmap(&mut self, page_table: &mut PageTable) -> Result<(), &'static str> {
+    pub fn unapply_mapping(&mut self, page_table: &mut PageTable) -> Result<(), &'static str> {
         for vpn in self.range.iter() {
             match self.map_type {
                 MapType::Identical => {}
@@ -333,6 +355,7 @@ pub enum MapType {
 }
 
 bitflags! {
+    #[derive(Clone, Copy)]
     pub struct MapPermission: u8 {
         const R = 1 << 1;
         const W = 1 << 2;

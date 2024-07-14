@@ -86,6 +86,35 @@ impl Process {
         );
         process
     }
+
+    pub fn fork(self: &Arc<Process>) -> Arc<Process> {
+        let mut parent_inner = self.inner.lock();
+        let memory_set = MemorySet::from_existed(&parent_inner.memory_set);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT).page_number_floor())
+            .unwrap()
+            .ppn();
+        let pid = Pid::new();
+        let kernel_stack = KernelStack::new(&pid);
+        let kernel_stack_top = kernel_stack.top();
+        let process = Arc::new(Process {
+            pid,
+            kernel_stack,
+            inner: spin::Mutex::new(ProcessInner {
+                parent: Some(Arc::downgrade(self)),
+                children: Vec::new(),
+                status: ProcessStatus::Ready,
+                exit_code: 0,
+                task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                memory_set,
+                trap_cx_ppn,
+                base_size: parent_inner.base_size,
+            }),
+        });
+        parent_inner.children.push(process.clone());
+        process.trap_cx().kernel_sp = kernel_stack_top;
+        process
+    }
 }
 
 #[derive(Debug, PartialEq)]

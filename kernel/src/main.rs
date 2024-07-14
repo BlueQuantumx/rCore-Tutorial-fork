@@ -67,7 +67,6 @@ pub fn rust_main() -> ! {
     clear_bss();
 
     logging::init();
-    println!("Hello, world!");
     trace!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
     trace!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
     trace!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);

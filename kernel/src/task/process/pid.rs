@@ -33,12 +33,15 @@ impl PidAllocator {
     }
 
     fn alloc(&mut self) -> usize {
-        if let Some(pid) = self.recycle.pop() {
-            pid
-        } else {
-            self.max_used += 1;
-            self.max_used
-        }
+        // TODO: temporarily disable pid recycle
+        // because the previous kernel stack is not released
+
+        // if let Some(pid) = self.recycle.pop() {
+        //     pid
+        // } else {
+        self.max_used += 1;
+        self.max_used
+        // }
     }
 
     fn dealloc(&mut self, pid: usize) {

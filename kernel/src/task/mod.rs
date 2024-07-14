@@ -97,6 +97,10 @@ impl ProcessManager {
     }
 }
 
+pub fn current_process() -> Arc<Process> {
+    PROCESSOR.lock().current().as_ref().unwrap().clone()
+}
+
 pub fn current_user_token() -> usize {
     PROCESSOR
         .lock()
@@ -110,6 +114,10 @@ pub fn current_user_token() -> usize {
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
     PROCESSOR.lock().current().as_ref().unwrap().trap_cx()
+}
+
+pub fn add_process(process: Arc<Process>) {
+    PROCESS_MANAGER.lock().add(process);
 }
 
 pub fn suspend_current_and_run_next_task() {

@@ -28,8 +28,8 @@ use core::arch::{asm, global_asm};
 use log::{trace, warn};
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
-    sie, stval, stvec,
-    stvec::TrapMode,
+    sie, stval,
+    stvec::{self, TrapMode},
 };
 
 global_asm!(include_str!("trap.S"));
