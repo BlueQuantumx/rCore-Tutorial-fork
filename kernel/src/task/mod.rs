@@ -9,15 +9,14 @@ use lazy_static::*;
 use log::info;
 use spin::Mutex;
 
-use crate::config::MAX_APP_NUM;
-use crate::trap::TrapContext;
-pub use context::TaskContext;
-pub use processor::run_processes;
-
 use self::process::Process;
 use self::processor::{schedule, PROCESSOR};
+use crate::config::MAX_APP_NUM;
 
-struct AppManager {
+pub use context::TaskContext;
+pub use processor::{current_process, current_trap_cx, current_user_token, run_processes};
+
+pub struct AppManager {
     num_app: usize,
     app_start: [usize; MAX_APP_NUM + 1],
 }
@@ -35,19 +34,22 @@ impl AppManager {
         }
     }
 
-    pub unsafe fn load_app(&self, app_id: usize) -> &'static [u8] {
+    pub fn load_app(&self, app_id: usize) -> &'static [u8] {
         info!("Loading app_{}", app_id);
+        assert!(app_id < self.num_app);
 
-        let app_elf = core::slice::from_raw_parts(
-            self.app_start[app_id] as *const u8,
-            self.app_start[app_id + 1] - self.app_start[app_id],
-        );
+        let app_elf = unsafe {
+            core::slice::from_raw_parts(
+                self.app_start[app_id] as *const u8,
+                self.app_start[app_id + 1] - self.app_start[app_id],
+            )
+        };
         app_elf
     }
 }
 
 lazy_static! {
-    static ref APP_MANAGER: Mutex<AppManager> = unsafe {
+    pub static ref APP_MANAGER: Mutex<AppManager> = unsafe {
         Mutex::new({
             extern "C" {
                 fn _num_app();
@@ -68,7 +70,7 @@ lazy_static! {
         let mut task_manager = ProcessManager::new();
         let app_manager = APP_MANAGER.lock();
         for id in 0..app_manager.num_app {
-            let elf_data = unsafe { app_manager.load_app(id) };
+            let elf_data = app_manager.load_app(id);
             task_manager.add(Arc::new(Process::new(elf_data)));
         }
 
@@ -95,25 +97,6 @@ impl ProcessManager {
     pub fn fetch(&mut self) -> Option<Arc<Process>> {
         self.tasks.pop_front()
     }
-}
-
-pub fn current_process() -> Arc<Process> {
-    PROCESSOR.lock().current().as_ref().unwrap().clone()
-}
-
-pub fn current_user_token() -> usize {
-    PROCESSOR
-        .lock()
-        .current()
-        .as_ref()
-        .unwrap()
-        .lock_inner()
-        .memory_set
-        .satp_token()
-}
-
-pub fn current_trap_cx() -> &'static mut TrapContext {
-    PROCESSOR.lock().current().as_ref().unwrap().trap_cx()
 }
 
 pub fn add_process(process: Arc<Process>) {

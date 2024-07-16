@@ -58,8 +58,18 @@ pub fn run_processes() -> ! {
     }
 }
 
+pub fn current_process() -> Arc<Process> {
+    PROCESSOR.lock().current().as_ref().unwrap().clone()
+}
+
 pub fn current_trap_cx() -> &'static mut TrapContext {
-    PROCESSOR.lock().current().as_ref().unwrap().trap_cx()
+    PROCESSOR
+        .lock()
+        .current()
+        .as_ref()
+        .unwrap()
+        .lock_inner()
+        .trap_cx()
 }
 
 pub fn current_user_token() -> usize {

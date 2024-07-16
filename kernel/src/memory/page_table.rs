@@ -1,8 +1,9 @@
-use alloc::vec;
 use alloc::vec::Vec;
+use alloc::{string::String, vec};
 use bitflags::*;
 use riscv::register::satp;
 
+use super::address::PAGE_SIZE;
 use super::{
     address::{PhysPageNum, VirtAddr, VirtPageNum},
     frame_allocator::{frame_alloc, FrameTracker},
@@ -160,4 +161,24 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+
+pub fn translated_str(token: usize, ptr: *const u8) -> String {
+    let page_table = PageTable::from_satp_token(token);
+    let mut start_va = VirtAddr::from(ptr as usize);
+    let mut s = String::new();
+    loop {
+        let vpn = start_va.page_number_floor();
+        let ppn = page_table.translate(vpn).unwrap().ppn();
+        let mut start_offset = start_va.page_offset();
+        while start_offset < PAGE_SIZE {
+            let ch = ppn.get_bytes_array()[start_offset];
+            if ch == 0 {
+                return s;
+            }
+            s.push(ch as char);
+            start_offset += 1;
+        }
+        start_va = VirtPageNum::from(vpn.0 + 1).into();
+    }
 }

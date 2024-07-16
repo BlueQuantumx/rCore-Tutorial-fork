@@ -5,6 +5,7 @@ lazy_static! {
     static ref PID_ALLOCATOR: spin::Mutex<PidAllocator> = spin::Mutex::new(PidAllocator::new());
 }
 
+#[derive(Debug)]
 pub struct Pid(pub usize);
 
 impl Pid {

@@ -13,7 +13,7 @@ use crate::{
     config::TRAP_CONTEXT,
     memory::{
         address::{PhysPageNum, VirtAddr},
-        MemorySet,
+        MemorySet, KERNEL_SPACE,
     },
     trap::{trap_handler, TrapContext},
 };
@@ -39,10 +39,13 @@ pub struct ProcessInner {
     pub base_size: usize,
 }
 
-impl Process {
+impl ProcessInner {
     pub fn trap_cx(&self) -> &'static mut TrapContext {
-        unsafe { self.inner.lock().trap_cx_ppn.get_mut() }
+        unsafe { self.trap_cx_ppn.get_mut() }
     }
+}
+
+impl Process {
     pub fn lock_inner(&self) -> spin::MutexGuard<ProcessInner> {
         self.inner.lock()
     }
@@ -76,7 +79,7 @@ impl Process {
             }),
         };
         // initialize trap context
-        let trap_cx = process.trap_cx();
+        let trap_cx = process.lock_inner().trap_cx();
         *trap_cx = TrapContext::app_init_context(
             entry_point,
             user_sp,
@@ -112,8 +115,28 @@ impl Process {
             }),
         });
         parent_inner.children.push(process.clone());
-        process.trap_cx().kernel_sp = kernel_stack_top;
+        process.lock_inner().trap_cx().kernel_sp = kernel_stack_top;
         process
+    }
+
+    pub fn exec(&self, elf_data: &[u8]) {
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT).page_number_floor())
+            .unwrap()
+            .ppn();
+        let mut inner = self.lock_inner();
+        inner.memory_set = memory_set;
+        inner.trap_cx_ppn = trap_cx_ppn;
+        inner.base_size = user_sp;
+
+        *inner.trap_cx() = TrapContext::app_init_context(
+            entry_point,
+            user_sp,
+            KERNEL_SPACE.lock().satp_token(),
+            self.kernel_stack.top(),
+            trap_handler as usize,
+        )
     }
 }
 
