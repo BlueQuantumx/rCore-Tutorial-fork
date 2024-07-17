@@ -21,8 +21,8 @@ fn main() {
         "cargo:rustc-link-arg=-T{}/src/linker-qemu.ld",
         CARGO_MANIFEST_DIR
     );
-    println!("cargo:rerun-if-changed=../user_apps/");
-    println!("cargo:rerun-if-changed=../user_lib/");
+    println!("cargo:rerun-if-changed=../user_apps");
+    println!("cargo:rerun-if-changed=../user_lib");
     insert_app_data().unwrap();
 }
 
@@ -52,19 +52,13 @@ _num_app:
     )?;
 
     for i in 0..apps.len() {
-        writeln!(f, r#"    .quad app_{}_start"#, i)?;
+        writeln!(f, r#"    .quad app_{i}_start"#)?;
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
 
     for (idx, app) in apps.iter().enumerate() {
-        println!("app_{}: {}", idx, app);
-        Command::new("rust-objcopy")
-            .arg("--binary-architecture=riscv64")
-            .arg(format!("{}/{}", TARGET_PATH.as_str(), app))
-            .args(["--strip-all", "-O", "binary"])
-            .arg(format!("{}/{}.bin", TARGET_PATH.as_str(), app))
-            .output()
-            .unwrap();
+        println!("app_{idx}: {app}");
+
         writeln!(
             f,
             r#"

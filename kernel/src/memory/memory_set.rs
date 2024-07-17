@@ -255,6 +255,20 @@ impl MemorySet {
             None,
         );
     }
+
+    pub fn remove_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) {
+        let (i, area) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)| {
+                area.range.start == start_va.page_number_floor()
+                    && area.range.end == end_va.page_number_ceil()
+            })
+            .unwrap();
+        area.unapply_mapping(&mut self.page_table).unwrap();
+        self.areas.remove(i);
+    }
     fn push(&mut self, mut area: MapArea, data: Option<&[u8]>) {
         area.apply_mapping(&mut self.page_table).unwrap();
         if let Some(data) = data {
@@ -311,7 +325,7 @@ impl MapArea {
         }
         Ok(())
     }
-    #[allow(dead_code)]
+
     pub fn unapply_mapping(&mut self, page_table: &mut PageTable) -> Result<(), &'static str> {
         for vpn in self.range.iter() {
             match self.map_type {

@@ -37,6 +37,21 @@ impl KernelStack {
     }
 }
 
+impl Drop for KernelStack {
+    fn drop(&mut self) {
+        let (stack_left, stack_right) = kernel_stack_position(self.pid);
+        trace!(
+            "unmapping kernel stack for process {} [{:x}, {:x})",
+            self.pid,
+            stack_left,
+            stack_right
+        );
+        KERNEL_SPACE
+            .lock()
+            .remove_area(stack_left.into(), stack_right.into());
+    }
+}
+
 /// return app's kernel stack with [{0}, {1})
 fn kernel_stack_position(pid: usize) -> (usize, usize) {
     let stack_bottom = TRAMPOLINE - pid * (KERNEL_STACK_SIZE + PAGE_SIZE); // stack bottom
